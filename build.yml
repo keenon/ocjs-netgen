@@ -18,6 +18,10 @@ mainBuild:
     - "--no-entry"
     - "-sPTHREAD_POOL_SIZE='navigator.hardwareConcurrency'"
     - "-sUSE_ZLIB=1"
+    # Instructs Emscripten to preserve stack trace context during unwinding
+    - "-sEXCEPTION_STACK_TRACES=1"
+    # Preserves C++ function names in the WASM binary (rather than wasm-function[123])
+    - "--profiling-funcs"
     - "/netgen_build/libnetgen_all.a" # <-- We now link the single unified library!
 
   additionalBindCode: |
@@ -45,25 +49,36 @@ mainBuild:
     class NetgenInterOp {
     public:
         static std::shared_ptr<netgen::Mesh> GenerateTetMesh(const TopoDS_Shape& shape, double maxH) {
-            // Guard Netgen initialization so it only ever runs once per WASM module load
-            static bool is_netgen_initialized = false;
-            if (!is_netgen_initialized) {
-                nglib::Ng_Init();
-                is_netgen_initialized = true;
+            try {
+                // Guard Netgen initialization so it only ever runs once per WASM module load
+                static bool is_netgen_initialized = false;
+                if (!is_netgen_initialized) {
+                    nglib::Ng_Init();
+                    is_netgen_initialized = true;
+                }
+                
+                auto occGeo = std::make_shared<netgen::OCCGeometry>(shape);
+                
+                netgen::MeshingParameters mp;
+                mp.maxh = maxH;
+                mp.perfstepsend = netgen::MESHCONST_MESHVOLUME;
+                
+                auto mesh = std::make_shared<netgen::Mesh>();
+                
+                // Set the geometry BEFORE attempting to mesh it!
+                mesh->SetGeometry(occGeo); 
+                
+                occGeo->GenerateMesh(mesh, mp);
+                
+                return mesh;
+            } catch (const std::exception& e) {
+                // Throw a native JS "Error" so Vitest formats the stack trace cleanly
+                emscripten::val::global("Error").new_(std::string(e.what())).throw_();
+                return nullptr; // Unreachable
+            } catch (...) {
+                emscripten::val::global("Error").new_(std::string("Unknown C++ exception in GenerateTetMesh")).throw_();
+                return nullptr; // Unreachable
             }
-            
-            // Use the constructor so Netgen computes the bounding box!
-            auto occGeo = std::make_shared<netgen::OCCGeometry>(shape);
-            
-            netgen::MeshingParameters mp;
-            mp.maxh = maxH;
-            mp.perfstepsend = netgen::MESHCONST_MESHVOLUME;
-            
-            auto mesh = std::make_shared<netgen::Mesh>();
-            occGeo->GenerateMesh(mesh, mp);
-            mesh->SetGeometry(occGeo); // Keeps geometry alive in memory
-            
-            return mesh;
         }
 
         // 4. Extract data into native JS Typed Arrays (Float64Array and Int32Array)
