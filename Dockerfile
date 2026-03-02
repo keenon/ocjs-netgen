@@ -18,7 +18,7 @@ RUN sed -i 's/ & anyflags//g' libsrc/core/flags.cpp
 # 2. Force Netgen to use the legacy JS exception model (-fexceptions) 
 # so it perfectly matches the OpenCascade.js pre-compiled objects.
 # TODO: upgrade this to wasm-exceptions once we also upgrade the OpenCascade docker build
-RUN find . -type f -name "CMakeLists.txt" -o -name "*.cmake" | xargs sed -i 's/-fwasm-exceptions/-fexceptions/g'
+# RUN find . -type f -name "CMakeLists.txt" -o -name "*.cmake" | xargs sed -i 's/-fwasm-exceptions/-fexceptions/g'
 
 # 3. Patch Netgen's CMakeLists.txt to bypass find_package(OpenCascade), ZLIB, and TKernel property checks
 RUN sed -i 's/find_package(OpenCascade.*//g' CMakeLists.txt && \
