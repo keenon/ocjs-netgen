@@ -45,7 +45,12 @@ mainBuild:
     class NetgenInterOp {
     public:
         static std::shared_ptr<netgen::Mesh> GenerateTetMesh(const TopoDS_Shape& shape, double maxH) {
-            nglib::Ng_Init(); 
+            // Guard Netgen initialization so it only ever runs once per WASM module load
+            static bool is_netgen_initialized = false;
+            if (!is_netgen_initialized) {
+                nglib::Ng_Init();
+                is_netgen_initialized = true;
+            }
             
             // Use the constructor so Netgen computes the bounding box!
             auto occGeo = std::make_shared<netgen::OCCGeometry>(shape);
