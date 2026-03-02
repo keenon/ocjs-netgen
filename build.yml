@@ -19,7 +19,7 @@ mainBuild:
     - "-sPTHREAD_POOL_SIZE='navigator.hardwareConcurrency'"
     - "-sUSE_ZLIB=1"
     # Instructs Emscripten to preserve stack trace context during unwinding
-    - "-sEXCEPTION_STACK_TRACES=1"
+    # - "-sEXCEPTION_STACK_TRACES=1" # TODO: Enable this once we have a newer Emscripten version that supports it
     # Preserves C++ function names in the WASM binary (rather than wasm-function[123])
     - "--profiling-funcs"
     - "/netgen_build/libnetgen_all.a" # <-- We now link the single unified library!
