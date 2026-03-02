@@ -1,0 +1,121 @@
+mainBuild:
+  name: "ocjs_with_netgen.js"
+  
+  emccFlags:
+    - "-flto"
+    - "-fwasm-exceptions"
+    # - "-pthread" 
+    - "-O3"
+    - "-std=c++17"
+    - "-msimd128"
+    - "-msse2"
+    - "-sEXPORT_ES6=1"
+    - "-sUSE_ES6_IMPORT_META=0"
+    - "-sEXPORTED_RUNTIME_METHODS=['FS']"
+    - "-sINITIAL_MEMORY=1024MB"
+    - "-sMAXIMUM_MEMORY=4GB"
+    - "-sALLOW_MEMORY_GROWTH=1"
+    - "--no-entry"
+    - "-sPTHREAD_POOL_SIZE='navigator.hardwareConcurrency'"
+    - "-sUSE_ZLIB=1"
+    - "/netgen_build/libnetgen_all.a" # <-- We now link the single unified library!
+
+  additionalBindCode: |
+    // 1. MUST define this before including Netgen headers!
+    #define OCCGEOMETRY 1
+    
+    #include <emscripten/bind.h>
+    #include <emscripten/val.h>
+    #include <vector>
+    
+    // 2. Wrap nglib.h inside its namespace to match the library's compiled mangling
+    namespace nglib {
+        #include <nglib.h>
+    }
+    
+    // Netgen C++ API headers
+    #include <occgeom.hpp>
+    #include <meshing.hpp>
+    
+    // OCCT headers
+    #include <TopoDS_Shape.hxx>
+
+    using namespace emscripten;
+
+    class NetgenInterOp {
+    public:
+        static std::shared_ptr<netgen::Mesh> GenerateTetMesh(const TopoDS_Shape& shape, double maxH) {
+            // 3. Call Ng_Init dynamically from the namespace
+            nglib::Ng_Init(); 
+            
+            auto occGeo = std::make_shared<netgen::OCCGeometry>();
+            occGeo->shape = shape;
+            occGeo->changed = 1;
+            occGeo->BuildFMap();
+            
+            netgen::MeshingParameters mp;
+            mp.maxh = maxH;
+            mp.perfstepsend = netgen::MESHCONST_MESHVOLUME;
+            
+            auto mesh = std::make_shared<netgen::Mesh>();
+            occGeo->GenerateMesh(mesh, mp);
+            mesh->SetGeometry(occGeo); // Keeps geometry alive in memory
+            
+            return mesh;
+        }
+
+        // 4. Extract data into native JS Typed Arrays (Float64Array and Int32Array)
+        static emscripten::val GetMeshData(std::shared_ptr<netgen::Mesh> mesh) {
+            int np = mesh->GetNP();
+            int ne = mesh->GetNE();
+
+            // Create native JS TypedArrays
+            emscripten::val jsVertices = emscripten::val::global("Float64Array").new_(np * 3);
+            emscripten::val jsTetrahedra = emscripten::val::global("Int32Array").new_(ne * 4);
+
+            // Populate vectors
+            std::vector<double> vData(np * 3);
+            for (int i = 1; i <= np; i++) {
+                // Netgen geometry is 1-indexed
+                const auto& p = mesh->Point(i);
+                int idx = (i - 1) * 3;
+                vData[idx] = p[0];
+                vData[idx + 1] = p[1];
+                vData[idx + 2] = p[2];
+            }
+            
+            // Synchronously copy C++ memory view to the JS Float64Array
+            jsVertices.call<void>("set", emscripten::val(emscripten::typed_memory_view(vData.size(), vData.data())));
+
+            std::vector<int> tData(ne * 4);
+            for (int i = 1; i <= ne; i++) {
+                const auto& el = mesh->VolumeElement(i);
+                int idx = (i - 1) * 4;
+                // Convert Netgen's 1-based indexing to 0-based for JS/WebGL
+                tData[idx] = el[0] - 1; 
+                tData[idx + 1] = el[1] - 1;
+                tData[idx + 2] = el[2] - 1;
+                tData[idx + 3] = el[3] - 1;
+            }
+            jsTetrahedra.call<void>("set", emscripten::val(emscripten::typed_memory_view(tData.size(), tData.data())));
+
+            // Package and return as a standard JS object
+            emscripten::val result = emscripten::val::object();
+            result.set("vertices", jsVertices);
+            result.set("tetrahedra", jsTetrahedra);
+            return result;
+        }
+    };
+
+    EMSCRIPTEN_BINDINGS(netgen_module) {
+        class_<NetgenInterOp>("NetgenInterOp")
+            .class_function("GenerateTetMesh", &NetgenInterOp::GenerateTetMesh, allow_raw_pointers())
+            .class_function("GetMeshData", &NetgenInterOp::GetMeshData, allow_raw_pointers());
+            
+        class_<netgen::Mesh>("Ng_Mesh")
+            .smart_ptr<std::shared_ptr<netgen::Mesh>>("shared_ptr_Ng_Mesh")
+            .function("GetNP", &netgen::Mesh::GetNP) 
+            .function("GetNE", &netgen::Mesh::GetNE);
+    }
+
+generateTypescriptDefinitions: true

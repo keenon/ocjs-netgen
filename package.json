@@ -1,0 +1,16 @@
+{
+  "name": "ocjs-netgen",
+  "version": "0.1.0",
+  "description": "Custom OpenCascade.js build with Netgen meshing",
+  "main": "ocjs_with_netgen.js",
+  "types": "ocjs_with_netgen.d.ts",
+  "files": [
+    "ocjs_with_netgen.js",
+    "ocjs_with_netgen.wasm",
+    "ocjs_with_netgen.d.ts"
+  ],
+  "scripts": {
+    "build": "./build.sh"
+  },
+  "keywords": ["opencascade", "netgen", "wasm"]
+}
