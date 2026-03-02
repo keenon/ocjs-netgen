@@ -45,13 +45,10 @@ mainBuild:
     class NetgenInterOp {
     public:
         static std::shared_ptr<netgen::Mesh> GenerateTetMesh(const TopoDS_Shape& shape, double maxH) {
-            // 3. Call Ng_Init dynamically from the namespace
             nglib::Ng_Init(); 
             
-            auto occGeo = std::make_shared<netgen::OCCGeometry>();
-            occGeo->shape = shape;
-            occGeo->changed = 1;
-            occGeo->BuildFMap();
+            // Use the constructor so Netgen computes the bounding box!
+            auto occGeo = std::make_shared<netgen::OCCGeometry>(shape);
             
             netgen::MeshingParameters mp;
             mp.maxh = maxH;
