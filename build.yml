@@ -27,6 +27,7 @@ mainBuild:
     #include <emscripten/bind.h>
     #include <emscripten/val.h>
     #include <vector>
+    #include <stdexcept>
     
     // 2. Wrap nglib.h inside its namespace to match the library's compiled mangling
     namespace nglib {
@@ -39,8 +40,48 @@ mainBuild:
     
     // OCCT headers
     #include <TopoDS_Shape.hxx>
+    #include <TopTools_ListOfShape.hxx>
+    #include <TopTools_ListOfListOfShape.hxx>
+    #include <TopTools_ListIteratorOfListOfShape.hxx>
+    #include <TopTools_ListIteratorOfListOfListOfShape.hxx>
 
     using namespace emscripten;
+
+    // --- TopTools Helper Functions ---
+
+    // Helper 1: Convert ListOfShape to a native JavaScript Array
+    emscripten::val TopTools_ListOfShape_toArray(const TopTools_ListOfShape& list) {
+        emscripten::val jsArray = emscripten::val::array();
+        int i = 0;
+        for (TopTools_ListIteratorOfListOfShape it(list); it.More(); it.Next()) {
+            jsArray.set(i++, it.Value());
+        }
+        return jsArray;
+    }
+
+    // Helper 2: Get a specific index. 
+    TopoDS_Shape TopTools_ListOfShape_get(const TopTools_ListOfShape& list, int index) {
+        int i = 0;
+        for (TopTools_ListIteratorOfListOfShape it(list); it.More(); it.Next()) {
+            if (i == index) {
+                return it.Value();
+            }
+            i++;
+        }
+        throw std::out_of_range("Index out of bounds");
+    }
+
+    // Helper 3: Convert ListOfListOfShape to a native JavaScript Array
+    emscripten::val TopTools_ListOfListOfShape_toArray(const TopTools_ListOfListOfShape& list) {
+        emscripten::val jsArray = emscripten::val::array();
+        int i = 0;
+        for (TopTools_ListIteratorOfListOfListOfShape it(list); it.More(); it.Next()) {
+            jsArray.set(i++, it.Value());
+        }
+        return jsArray;
+    }
+
+    // --- Netgen InterOp ---
 
     class NetgenInterOp {
     public:
@@ -129,6 +170,12 @@ mainBuild:
             .smart_ptr<std::shared_ptr<netgen::Mesh>>("shared_ptr_Ng_Mesh")
             .function("GetNP", &netgen::Mesh::GetNP) 
             .function("GetNE", &netgen::Mesh::GetNE);
+    }
+
+    EMSCRIPTEN_BINDINGS(TopTools_Helpers) {
+        emscripten::function("TopTools_ListOfShape_toArray", &TopTools_ListOfShape_toArray);
+        emscripten::function("TopTools_ListOfShape_get", &TopTools_ListOfShape_get);
+        emscripten::function("TopTools_ListOfListOfShape_toArray", &TopTools_ListOfListOfShape_toArray);
     }
 
 generateTypescriptDefinitions: true
