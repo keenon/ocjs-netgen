@@ -42,8 +42,6 @@ mainBuild:
     #include <TopoDS_Shape.hxx>
     #include <TopTools_ListOfShape.hxx>
     #include <TopTools_ListOfListOfShape.hxx>
-    #include <TopTools_ListIteratorOfListOfShape.hxx>
-    #include <TopTools_ListIteratorOfListOfListOfShape.hxx>
 
     using namespace emscripten;
 
@@ -53,7 +51,7 @@ mainBuild:
     emscripten::val TopTools_ListOfShape_toArray(const TopTools_ListOfShape& list) {
         emscripten::val jsArray = emscripten::val::array();
         int i = 0;
-        for (TopTools_ListIteratorOfListOfShape it(list); it.More(); it.Next()) {
+        for (TopTools_ListOfShape::Iterator it(list); it.More(); it.Next()) {
             jsArray.set(i++, it.Value());
         }
         return jsArray;
@@ -62,7 +60,7 @@ mainBuild:
     // Helper 2: Get a specific index. 
     TopoDS_Shape TopTools_ListOfShape_get(const TopTools_ListOfShape& list, int index) {
         int i = 0;
-        for (TopTools_ListIteratorOfListOfShape it(list); it.More(); it.Next()) {
+        for (TopTools_ListOfShape::Iterator it(list); it.More(); it.Next()) {
             if (i == index) {
                 return it.Value();
             }
@@ -75,7 +73,7 @@ mainBuild:
     emscripten::val TopTools_ListOfListOfShape_toArray(const TopTools_ListOfListOfShape& list) {
         emscripten::val jsArray = emscripten::val::array();
         int i = 0;
-        for (TopTools_ListIteratorOfListOfListOfShape it(list); it.More(); it.Next()) {
+        for (TopTools_ListOfListOfShape::Iterator it(list); it.More(); it.Next()) {
             jsArray.set(i++, it.Value());
         }
         return jsArray;
